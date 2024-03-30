@@ -3,20 +3,21 @@ module Web.Api.WebDriver.Monad.Test.Session.Success (
     successfulExit
   ) where
 
-import System.IO
-
 import Web.Api.WebDriver
 import Test.Tasty.WebDriver
 
 import qualified Test.Tasty as T
 import qualified Test.Tasty.ExpectedFailure as TE
 
+import qualified Data.Text as Text
+
 
 unexpectedError
   :: (Monad eff)
   => WDError
   -> WebDriverT eff ()
-unexpectedError e = assertFailure $ AssertionComment $ "Unexpected error:\n" ++ show e
+unexpectedError e = assertFailure $ AssertionComment $
+  "Unexpected error:\n" <> Text.pack (show e)
 
 
 successfulExit
@@ -99,8 +100,8 @@ _test_sessionStatus_success
 _test_sessionStatus_success page =
   let
     session = do
-      navigateTo page
-      (!r,!m) <- sessionStatus
+      navigateTo $ Text.pack page
+      _ <- sessionStatus
       assertSuccess "yay"
       return ()
 
@@ -113,7 +114,7 @@ _test_getTimeouts_success
 _test_getTimeouts_success =
   let
     session = do
-      !timeouts <- getTimeouts
+      _ <- getTimeouts
       assertSuccess "yay"
       return ()
 
@@ -126,7 +127,7 @@ _test_setTimeouts_success
 _test_setTimeouts_success =
   let
     session = do
-      () <- setTimeouts emptyTimeoutConfig
+      _ <- setTimeouts emptyTimeoutConfig
       assertSuccess "yay"
       return ()
 
@@ -139,7 +140,7 @@ _test_navigateTo_success
 _test_navigateTo_success page =
   let
     session = do
-      () <- navigateTo page
+      _ <- navigateTo $ Text.pack page
       assertSuccess "yay"
       return ()
 
@@ -152,7 +153,7 @@ _test_navigateToStealth_success
 _test_navigateToStealth_success page =
   let
     session = do
-      () <- navigateToStealth page
+      _ <- navigateToStealth $ Text.pack page
       assertSuccess "yay"
       return ()
 
@@ -165,7 +166,7 @@ _test_getCurrentUrl_success
 _test_getCurrentUrl_success =
   let
     session = do
-      !url <- getCurrentUrl
+      _ <- getCurrentUrl
       assertSuccess "yay"
       return ()
 
@@ -178,7 +179,9 @@ _test_goBack_success
 _test_goBack_success =
   let
     session = do
-      () <- goBack
+      _ <- navigateTo "https://example.com"
+        -- chromedriver gets cranky if we try to navigate back when there is no history :)
+      _ <- goBack
       assertSuccess "yay"
       return ()
 
@@ -191,7 +194,7 @@ _test_goForward_success
 _test_goForward_success =
   let
     session = do
-      () <- goForward
+      _ <- goForward
       assertSuccess "yay"
       return ()
 
@@ -204,7 +207,7 @@ _test_pageRefresh_success
 _test_pageRefresh_success =
   let
     session = do
-      () <- pageRefresh
+      _ <- pageRefresh
       assertSuccess "yay"
       return ()
 
@@ -217,7 +220,7 @@ _test_getTitle_success
 _test_getTitle_success =
   let
     session = do
-      !title <- getTitle
+      _ <- getTitle
       assertSuccess "yay"
       return ()
 
@@ -230,7 +233,7 @@ _test_getWindowHandle_success
 _test_getWindowHandle_success =
   let
     session = do
-      !handle <- getWindowHandle
+      _ <- getWindowHandle
       assertSuccess "yay"
       return ()
 
@@ -251,7 +254,7 @@ _test_switchToWindow_success =
       case hs of
         [] -> assertFailure "no window handles"
         (!h):_ -> do
-          () <- switchToWindow h
+          _ <- switchToWindow h
           assertSuccess "yay"
           return ()
 
@@ -264,13 +267,13 @@ _test_getWindowHandles_success
 _test_getWindowHandles_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !handles <- getWindowHandles
       case handles of
         [] -> do
           assertSuccess "yay"
           return ()
-        (!x):xs -> do
+        _:_ -> do
           assertSuccess "yay"
           return ()
 
@@ -283,7 +286,7 @@ _test_newWindow_success
 _test_newWindow_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       (handle, _) <- newWindow TabContext
       switchToWindow handle
       url <- getCurrentUrl
@@ -300,8 +303,8 @@ _test_switchToFrame_success
 _test_switchToFrame_success page =
   let
     session = do
-      navigateTo page
-      () <- switchToFrame TopLevelFrame
+      navigateTo $ Text.pack page
+      _ <- switchToFrame TopLevelFrame
       assertSuccess "yay"
       return ()
 
@@ -314,7 +317,7 @@ _test_switchToParentFrame_success
 _test_switchToParentFrame_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       () <- switchToParentFrame
       assertSuccess "yay"
       return ()
@@ -328,7 +331,7 @@ _test_getWindowRect_success
 _test_getWindowRect_success =
   let
     session = do
-      !rect <- getWindowRect
+      _ <- getWindowRect
       assertSuccess "yay"
       return ()
 
@@ -341,7 +344,7 @@ _test_setWindowRect_success
 _test_setWindowRect_success =
   let
     session = do
-      !rect <- setWindowRect $ Rect
+      _ <- setWindowRect $ Rect
         { _rectX = 0
         , _rectY = 0
         , _rectWidth = 640
@@ -359,7 +362,7 @@ _test_maximizeWindow_success
 _test_maximizeWindow_success =
   let
     session = do
-      !rect <- maximizeWindow
+      _ <- maximizeWindow
       assertSuccess "yay"
       return ()
 
@@ -372,7 +375,7 @@ _test_minimizeWindow_success
 _test_minimizeWindow_success =
   let
     session = do
-      !rect <- minimizeWindow
+      _ <- minimizeWindow
       assertSuccess "yay"
       return ()
 
@@ -385,7 +388,7 @@ _test_fullscreenWindow_success
 _test_fullscreenWindow_success =
   let
     session = do
-      !rect <- fullscreenWindow
+      _ <- fullscreenWindow
       assertSuccess "yay"
       return ()
 
@@ -398,12 +401,12 @@ _test_findElement_success
 _test_findElement_success page =
   let
     session = do
-      navigateTo page
-      !element <- findElement CssSelector "body"
-      !element <- findElement LinkTextSelector "A Link"
-      !element <- findElement PartialLinkTextSelector "Link"
-      !element <- findElement TagName "body"
-      !element <- findElement XPathSelector "*"
+      navigateTo $ Text.pack page
+      _ <- findElement CssSelector "body"
+      _ <- findElement LinkTextSelector "A Link"
+      _ <- findElement PartialLinkTextSelector "Link"
+      _ <- findElement TagName "body"
+      _ <- findElement XPathSelector "*"
       assertSuccess "yay"
       return ()
 
@@ -416,27 +419,27 @@ _test_findElements_success
 _test_findElements_success page =
   let
     session = do
-      navigateTo page
-      !elements <- findElements CssSelector "body"
-      case elements of
+      navigateTo $ Text.pack page
+      !e0 <- findElements CssSelector "body"
+      case e0 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElements LinkTextSelector "Standards"
-      case elements of
+        _:_ -> return ()
+      !e1 <- findElements LinkTextSelector "Standards"
+      case e1 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElements PartialLinkTextSelector "Standards"
-      case elements of
+        _:_ -> return ()
+      !e2 <- findElements PartialLinkTextSelector "Standards"
+      case e2 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElements TagName "body"
-      case elements of
+        _:_ -> return ()
+      !e3 <- findElements TagName "body"
+      case e3 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElements XPathSelector "*"
-      case elements of
+        _:_ -> return ()
+      !e4 <- findElements XPathSelector "*"
+      case e4 of
         [] -> return ()
-        (!x):xs -> return ()
+        _:_ -> return ()
       assertSuccess "yay"
       return ()
 
@@ -449,13 +452,13 @@ _test_findElementFromElement_success
 _test_findElementFromElement_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       root <- findElement CssSelector "body"
-      !element <- findElementFromElement CssSelector "p" root
-      !element <- findElementFromElement LinkTextSelector "A Link" root
-      !element <- findElementFromElement PartialLinkTextSelector "Link" root
-      !element <- findElementFromElement TagName "p" root
-      !element <- findElementFromElement XPathSelector "*" root
+      _ <- findElementFromElement CssSelector "p" root
+      _ <- findElementFromElement LinkTextSelector "A Link" root
+      _ <- findElementFromElement PartialLinkTextSelector "Link" root
+      _ <- findElementFromElement TagName "p" root
+      _ <- findElementFromElement XPathSelector "*" root
       assertSuccess "yay"
       return ()
 
@@ -468,28 +471,28 @@ _test_findElementsFromElement_success
 _test_findElementsFromElement_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       root <- findElement CssSelector "body"
-      !elements <- findElementsFromElement CssSelector "p" root
-      case elements of
+      !e0 <- findElementsFromElement CssSelector "p" root
+      case e0 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElementsFromElement LinkTextSelector "Standards" root
-      case elements of
+        _:_ -> return ()
+      !e1 <- findElementsFromElement LinkTextSelector "Standards" root
+      case e1 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElementsFromElement PartialLinkTextSelector "Standards" root
-      case elements of
+        _:_ -> return ()
+      !e2 <- findElementsFromElement PartialLinkTextSelector "Standards" root
+      case e2 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElementsFromElement TagName "p" root
-      case elements of
+        _:_ -> return ()
+      !e3 <- findElementsFromElement TagName "p" root
+      case e3 of
         [] -> return ()
-        (!x):xs -> return ()
-      !elements <- findElementsFromElement XPathSelector "*" root
-      case elements of
+        _:_ -> return ()
+      !e4 <- findElementsFromElement XPathSelector "*" root
+      case e4 of
         [] -> return ()
-        (!x):xs -> return ()
+        _:_ -> return ()
       assertSuccess "yay"
       return ()
 
@@ -502,7 +505,7 @@ _test_getActiveElement_success
 _test_getActiveElement_success =
   let
     session = do
-      !element <- getActiveElement
+      _ <- getActiveElement
       assertSuccess "yay"
       return ()
 
@@ -515,9 +518,9 @@ _test_isElementSelected_success
 _test_isElementSelected_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- getActiveElement
-      !p <- isElementSelected element
+      _ <- isElementSelected element
       assertSuccess "yay"
       return ()
 
@@ -530,9 +533,9 @@ _test_getElementAttribute_success
 _test_getElementAttribute_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- getActiveElement
-      !attr <- getElementAttribute "href" element
+      _ <- getElementAttribute "href" element
       assertSuccess "yay"
       return ()
 
@@ -549,7 +552,7 @@ _test_getElementCssValue_success
 _test_getElementCssValue_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- findElement CssSelector "p#super-cool"
       !text <- getElementCssValue "text-decoration" element
       case text of
@@ -571,9 +574,9 @@ _test_getElementText_success
 _test_getElementText_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- getActiveElement
-      !text <- getElementText element
+      _ <- getElementText element
       assertSuccess "yay"
       return ()
 
@@ -586,12 +589,13 @@ _test_getElementTagName_success
 _test_getElementTagName_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- findElement CssSelector "div.test"
       !text <- getElementTagName element
       case text of
         "div" -> assertSuccess "yay"
-        _ -> assertFailure $ AssertionComment $ "expected 'div', got '" ++ text ++ "'"
+        _ -> assertFailure $ AssertionComment $
+          "expected 'div', got '" <> text <> "'"
       return ()
 
   in  catchError session unexpectedError
@@ -603,9 +607,9 @@ _test_getElementRect_success
 _test_getElementRect_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- getActiveElement
-      !rect <- getElementRect element
+      _ <- getElementRect element
       assertSuccess "yay"
       return ()
 
@@ -618,9 +622,9 @@ _test_isElementEnabled_success
 _test_isElementEnabled_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- getActiveElement
-      !p <- isElementEnabled element
+      _ <- isElementEnabled element
       assertSuccess "yay"
       return ()
 
@@ -633,9 +637,9 @@ _test_getComputedRole_success
 _test_getComputedRole_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- getActiveElement
-      !role <- getComputedRole element
+      _ <- getComputedRole element
       assertSuccess "yay"
       return ()
 
@@ -648,9 +652,9 @@ _test_getComputedLabel_success
 _test_getComputedLabel_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- getActiveElement
-      !role <- getComputedLabel element
+      _ <- getComputedLabel element
       assertSuccess "yay"
       return ()
 
@@ -663,9 +667,9 @@ _test_elementClick_success
 _test_elementClick_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !root <- findElement CssSelector "body"
-      () <- elementClick root
+      _ <- elementClick root
       assertSuccess "yay"
       return ()
 
@@ -678,9 +682,9 @@ _test_elementClear_success
 _test_elementClear_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- findElement CssSelector "input[name='sometext']"
-      () <- elementClear element
+      _ <- elementClear element
       assertSuccess "yay"
       return ()
 
@@ -693,9 +697,9 @@ _test_elementSendKeys_success
 _test_elementSendKeys_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- findElement CssSelector "input[name='sometext']"
-      () <- elementSendKeys "foo" element
+      _ <- elementSendKeys "foo" element
       assertSuccess "yay"
       return ()
 
@@ -708,8 +712,8 @@ _test_getPageSource_success
 _test_getPageSource_success page =
   let
     session = do
-      navigateTo page
-      !src <- getPageSource
+      navigateTo $ Text.pack page
+      _ <- getPageSource
       assertSuccess "yay"
       return ()
 
@@ -722,8 +726,8 @@ _test_getPageSourceStealth_success
 _test_getPageSourceStealth_success page =
   let
     session = do
-      navigateTo page
-      !src <- getPageSourceStealth
+      navigateTo $ Text.pack page
+      _ <- getPageSourceStealth
       assertSuccess "yay"
       return ()
 
@@ -744,11 +748,11 @@ _test_getAllCookies_success
 _test_getAllCookies_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !jar <- getAllCookies
       case jar of
         [] -> assertSuccess "yay"
-        (!x):_ -> assertFailure "unexpected cookie"
+        _:_ -> assertFailure "unexpected cookie"
       return ()
 
   in  catchError session unexpectedError
@@ -760,11 +764,11 @@ _test_getNamedCookie_success
 _test_getNamedCookie_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       findElement CssSelector "button#add-cookie-button" >>= elementClick
-      !cookie <- getNamedCookie "fakeCookie"
-      assertEqual (_cookieName cookie) (Just "fakeCookie") "cookie name"
-      assertEqual (_cookieValue cookie) (Just "fakeValue") "cookie name"
+      !c <- getNamedCookie "fakeCookie"
+      assertEqual (_cookieName c) (Just "fakeCookie") "cookie name"
+      assertEqual (_cookieValue c) (Just "fakeValue") "cookie name"
       return ()
 
   in  catchError session unexpectedError
@@ -781,7 +785,7 @@ _test_deleteCookie_success
 _test_deleteCookie_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       findElement CssSelector "button#add-cookie-button" >>= elementClick
       () <- deleteCookie "fakeCookie"
       assertSuccess "yay"
@@ -884,7 +888,7 @@ _test_dismissAlert_success
 _test_dismissAlert_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       findElement CssSelector "button#alert-button" >>= elementClick
       () <- dismissAlert
       assertSuccess "yay alert"
@@ -905,7 +909,7 @@ _test_acceptAlert_success
 _test_acceptAlert_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       findElement CssSelector "button#alert-button" >>= elementClick
       () <- acceptAlert
       assertSuccess "yay alert"
@@ -926,22 +930,22 @@ _test_getAlertText_success
 _test_getAlertText_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       findElement CssSelector "button#alert-button" >>= elementClick
-      !box <- getAlertText
-      case box of
+      !box0 <- getAlertText
+      case box0 of
         Nothing -> assertFailure "oh no alert"
         Just msg -> assertEqual msg "WOO!!" "alert text"
       acceptAlert
       findElement CssSelector "button#confirm-button" >>= elementClick
-      !box <- getAlertText
-      case box of
+      !box1 <- getAlertText
+      case box1 of
         Nothing -> assertFailure "oh no confirm"
         Just msg -> assertEqual msg "WOO!!" "confirm text"
       acceptAlert
       findElement CssSelector "button#prompt-button" >>= elementClick
-      !box <- getAlertText
-      case box of
+      !box2 <- getAlertText
+      case box2 of
         Nothing -> assertFailure "oh no prompt"
         Just msg -> assertEqual msg "WOO!!" "prompt text"
       acceptAlert
@@ -956,7 +960,7 @@ _test_sendAlertText_success
 _test_sendAlertText_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       findElement CssSelector "button#prompt-button" >>= elementClick
       () <- sendAlertText "wut"
       assertSuccess "yay prompt"
@@ -971,8 +975,8 @@ _test_takeScreenshot_success
 _test_takeScreenshot_success page =
   let
     session = do
-      navigateTo page
-      !screenshot <- takeScreenshot
+      navigateTo $ Text.pack page
+      _ <- takeScreenshot
       assertSuccess "yay"
       return ()
 
@@ -985,9 +989,9 @@ _test_takeElementScreenshot_success
 _test_takeElementScreenshot_success page =
   let
     session = do
-      navigateTo page
+      navigateTo $ Text.pack page
       !element <- findElement CssSelector "body"
-      !screenshot <- takeElementScreenshot element
+      _ <- takeElementScreenshot element
       assertSuccess "yay"
       return ()
 
@@ -1000,8 +1004,8 @@ _test_printPage_success
 _test_printPage_success page =
   let
     session = do
-      navigateTo page
-      !screenshot <- printPage defaultPrintOptions
+      navigateTo $ Text.pack page
+      _ <- printPage defaultPrintOptions
       assertSuccess "yay"
       return ()
 

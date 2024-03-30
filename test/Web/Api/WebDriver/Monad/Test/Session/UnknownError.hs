@@ -3,7 +3,6 @@ module Web.Api.WebDriver.Monad.Test.Session.UnknownError (
     unknownErrorExit
   ) where
 
-import Data.Typeable (Typeable)
 import System.IO
 
 import Web.Api.WebDriver
@@ -38,7 +37,7 @@ _test_navigateTo_unknown_error =
   let
     session = do
       navigateTo "https://fake.example"
-      throwError $ UnexpectedResult IsSuccess "Expecting 'unknown error'"
+      _ <- throwError $ UnexpectedResult IsSuccess "Expecting 'unknown error'"
       return ()
 
   in catchError session unknownError

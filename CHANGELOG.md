@@ -4,15 +4,19 @@ Changelog for webdriver-w3c
 Unreleased
 ----------
 
+0.0.3
+-----
+
 * Added
-  * `MonadIO` instance for `WebDriverTT t eff`
+  * `MonadIO` and `MonadFail` instances for `WebDriverTT t eff`
   * New endpoints: `newWindow`, `getComputedRole`, `getComputedLabel`, `printPage`
+  * Compiles with aeson >=2.0.0.0 and GHC >=8.8.1
 * Changed
-  * Bump stack resolver to lts-16.0
   * The old behavior of `runIsolated` has been renamed to `runIsolated_`, and `runIsolated` now returns the result of its argument. The naming is meant to mimic the `sequence_`/`sequence` pattern.
   * `chromeOptions` renamed to `goog:chromeOptions` in `ToJSON` `FromJSON` instances for `Capability` for compatibility with chromedriver versions >=75; see https://chromedriver.storage.googleapis.com/75.0.3770.8/notes.txt. Fixes issue #21.
 * Fixed
   * Bug in behavior of `switchToFrame` when using `FrameContainingElement`
+  * Default value of wd-private-mode tasty flag changed to `False`
 
 
 

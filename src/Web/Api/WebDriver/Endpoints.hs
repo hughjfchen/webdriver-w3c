@@ -177,11 +177,14 @@ import Data.Aeson
 import Data.Aeson.Key
   ( fromText )
 import Data.Text
-  ( Text, unpack, pack )
+  ( Text, unpack )
 import Data.Text.Encoding
   ( encodeUtf8 )
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Base64 as B64
+import Data.String (IsString)
+import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Network.URI.Encode as E
 
 import Web.Api.WebDriver.Types
@@ -191,15 +194,15 @@ import Web.Api.WebDriver.Monad
 
 
 -- | Spec-defined "web element identifier" string constant. See <https://w3c.github.io/webdriver/webdriver-spec.html#elements>.
-_WEB_ELEMENT_ID :: Text
+_WEB_ELEMENT_ID :: (IsString t) => t
 _WEB_ELEMENT_ID = "element-6066-11e4-a52e-4f735466cecf"
 
 -- | Spec-defined "web window identifier" string constant. See <https://w3c.github.io/webdriver/webdriver-spec.html#command-contexts>.
-_WEB_WINDOW_ID :: Text
+_WEB_WINDOW_ID :: (IsString t) => t
 _WEB_WINDOW_ID =  "window-fcc6-11e5-b4f8-330a88ab9d7f"
 
 -- | Spec-defined "web frame identifier" string constant. See <https://w3c.github.io/webdriver/webdriver-spec.html#command-contexts>.
-_WEB_FRAME_ID :: Text
+_WEB_FRAME_ID :: (IsString t) => t
 _WEB_FRAME_ID = "frame-075b-4da1-b6ba-e579c2d3230a"
 
 
@@ -209,26 +212,26 @@ _WEB_FRAME_ID = "frame-075b-4da1-b6ba-e579c2d3230a"
 -- | Url of the remote WebDriver server.
 theRemoteUrl
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => WebDriverTT t eff String
+  => WebDriverTT t eff Url
 theRemoteUrl = do
   host <- fromEnv (_remoteHostname . _env)
   port <- fromEnv (_remotePort . _env)
   path <- fromEnv (_remotePath . _env)
-  return $ concat [ "http://", host, ":", show port, path]
+  return $ T.concat [ "http://", host, ":", T.pack $ show port, path]
 
 -- | Url of the remote WebDriver server, with session ID.
-theRemoteUrlWithSession :: (Monad eff, Monad (t eff), MonadTrans t) => WebDriverTT t eff String
+theRemoteUrlWithSession :: (Monad eff, Monad (t eff), MonadTrans t) => WebDriverTT t eff Url
 theRemoteUrlWithSession = do
   st <- fromState (_sessionId . _userState)
   case st of
     Nothing -> throwError NoSession
     Just session_id -> do
       baseUrl <- theRemoteUrl
-      return $ concat [ baseUrl, "/session/", session_id ]
+      return $ T.concat [ baseUrl, "/session/", session_id ]
 
 -- | Set the session id of a `WDState`.
 setSessionId
-  :: Maybe String
+  :: Maybe Text
   -> S WDState
   -> S WDState
 setSessionId x st = st { _userState = (_userState st) { _sessionId = x } }
@@ -293,7 +296,7 @@ newSession' f caps = do
         [ "alwaysMatch" .= toJSON caps ]
       , "desiredCapabilities" .= toJSON caps
       ]
-  httpPost (baseUrl ++ "/session") payload
+  httpPost (baseUrl <> "/session") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= case format of
@@ -301,7 +304,6 @@ newSession' f caps = do
           ChromeFormat -> return
     >>= lookupKeyJson "sessionId"
     >>= constructFromJson
-    >>= (return . unpack)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#delete-session>.
@@ -321,11 +323,11 @@ deleteSession = do
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#status>.
 sessionStatus
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => WebDriverTT t eff (Bool, String)
+  => WebDriverTT t eff (Bool, Text)
 sessionStatus = do
   baseUrl <- theRemoteUrl
   format <- fromEnv (_responseFormat . _env)
-  r <- httpGet (baseUrl ++ "/status")
+  r <- httpGet (baseUrl <> "/status")
     >>= (return . _responseBody)
     >>= parseJson
   ready <- case format of
@@ -339,7 +341,6 @@ sessionStatus = do
       lookupKeyJson "value" r
         >>= lookupKeyJson "message"
         >>= constructFromJson
-        >>= (return . unpack)
     ChromeFormat -> return "chromedriver is not spec compliant :)"
   return (ready, msg)
 
@@ -350,7 +351,7 @@ getTimeouts
   => WebDriverTT t eff TimeoutConfig
 getTimeouts = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/timeouts")
+  httpGet (baseUrl <> "/timeouts")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -365,7 +366,7 @@ setTimeouts
 setTimeouts timeouts = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode timeouts
-  httpPost (baseUrl ++ "/timeouts") payload
+  httpPost (baseUrl <> "/timeouts") payload
   return ()
 
 
@@ -377,7 +378,7 @@ navigateTo
 navigateTo url = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object [ "url" .= url ]
-  httpPost (baseUrl ++ "/url") payload
+  httpPost (baseUrl <> "/url") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -393,7 +394,7 @@ navigateToStealth
 navigateToStealth url = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object [ "url" .= url ]
-  httpSilentPost (baseUrl ++ "/url") payload
+  httpSilentPost (baseUrl <> "/url") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -407,12 +408,11 @@ getCurrentUrl
   => WebDriverTT t eff Url
 getCurrentUrl = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/url")
+  httpGet (baseUrl <> "/url")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
     >>= constructFromJson
-    >>= (return . unpack)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#back>.
@@ -422,7 +422,7 @@ goBack
 goBack = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/back") payload
+  httpPost (baseUrl <> "/back") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -437,7 +437,7 @@ goForward
 goForward = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/forward") payload
+  httpPost (baseUrl <> "/forward") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -452,7 +452,7 @@ pageRefresh
 pageRefresh = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/refresh") payload
+  httpPost (baseUrl <> "/refresh") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -463,15 +463,14 @@ pageRefresh = do
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#get-title>.
 getTitle
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => WebDriverTT t eff String
+  => WebDriverTT t eff Text
 getTitle = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/title")
+  httpGet (baseUrl <> "/title")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
     >>= constructFromJson
-    >>= (return . unpack)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#get-window-handle>.
@@ -480,12 +479,12 @@ getWindowHandle
   => WebDriverTT t eff ContextId
 getWindowHandle = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/window")
+  httpGet (baseUrl <> "/window")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
     >>= constructFromJson
-    >>= (return . ContextId . unpack)
+    >>= (return . ContextId)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#close-window>.
@@ -494,13 +493,13 @@ closeWindow
   => WebDriverTT t eff [ContextId]
 closeWindow = do
   baseUrl <- theRemoteUrlWithSession
-  httpDelete (baseUrl ++ "/window")
+  httpDelete (baseUrl <> "/window")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
     >>= constructFromJson
     >>= (sequence . map constructFromJson)
-    >>= (return . map (ContextId . unpack))
+    >>= (return . map ContextId)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#switch-to-window>.
@@ -512,7 +511,7 @@ switchToWindow t = do
   let contextId = contextIdOf t
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object [ "handle" .= show contextId ]
-  httpPost (baseUrl ++ "/window") payload
+  httpPost (baseUrl <> "/window") payload
   return ()
 
 
@@ -522,13 +521,13 @@ getWindowHandles
   => WebDriverTT t eff [ContextId]
 getWindowHandles = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/window/handles")
+  httpGet (baseUrl <> "/window/handles")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
     >>= constructFromJson
     >>= (sequence . map constructFromJson)
-    >>= (return . map (ContextId . unpack))
+    >>= (return . map ContextId)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#new-window>
@@ -538,7 +537,7 @@ newWindow
 newWindow ctxTypeReq = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object [ "type" .= ctxTypeReq ]
-  response <- httpPost (baseUrl ++ "/window/new") payload
+  response <- httpPost (baseUrl <> "/window/new") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -565,7 +564,7 @@ switchToFrame ref = do
     !payload = encode $ object
       [ "id" .= toJSON frame ]
 
-  httpPost (baseUrl ++ "/frame") payload
+  httpPost (baseUrl <> "/frame") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -580,7 +579,7 @@ switchToParentFrame
 switchToParentFrame = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/frame/parent") payload
+  httpPost (baseUrl <> "/frame/parent") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -594,7 +593,7 @@ getWindowRect
   => WebDriverTT t eff Rect
 getWindowRect = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/window/rect")
+  httpGet (baseUrl <> "/window/rect")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -609,7 +608,7 @@ setWindowRect
 setWindowRect rect = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode rect
-  httpPost (baseUrl ++ "/window/rect") payload
+  httpPost (baseUrl <> "/window/rect") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -623,7 +622,7 @@ maximizeWindow
 maximizeWindow = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/window/maximize") payload
+  httpPost (baseUrl <> "/window/maximize") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -637,7 +636,7 @@ minimizeWindow
 minimizeWindow = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/window/minimize") payload
+  httpPost (baseUrl <> "/window/minimize") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -651,7 +650,7 @@ fullscreenWindow
 fullscreenWindow = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/window/fullscreen") payload
+  httpPost (baseUrl <> "/window/fullscreen") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -667,7 +666,7 @@ findElement
 findElement strategy selector = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object [ "value" .= selector, "using" .= toJSON strategy ]
-  httpPost (baseUrl ++ "/element") payload
+  httpPost (baseUrl <> "/element") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -675,7 +674,7 @@ findElement strategy selector = do
           SpecFormat -> lookupKeyJson _WEB_ELEMENT_ID
           ChromeFormat -> lookupKeyJson "ELEMENT"
     >>= constructFromJson
-    >>= (return . ElementRef . unpack)
+    >>= (return . ElementRef)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#find-elements>.
@@ -687,7 +686,7 @@ findElements
 findElements strategy selector = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object [ "value" .= selector, "using" .= toJSON strategy ]
-  httpPost (baseUrl ++ "/elements") payload
+  httpPost (baseUrl <> "/elements") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -696,7 +695,7 @@ findElements strategy selector = do
           SpecFormat -> mapM (lookupKeyJson _WEB_ELEMENT_ID)
           ChromeFormat -> mapM (lookupKeyJson "ELEMENT")
     >>= mapM constructFromJson
-    >>= (return . map (ElementRef . unpack))
+    >>= (return . map ElementRef)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#find-element-from-element>.
@@ -708,9 +707,9 @@ findElementFromElement
   -> WebDriverTT t eff ElementRef
 findElementFromElement strategy selector root = do
   (baseUrl, format) <- theRequestContext
-  let root_id = elementRefOf root
+  let root_id = theElementRef $ elementRefOf root
   let !payload = encode $ object [ "value" .= selector, "using" .= toJSON strategy ]
-  httpPost (baseUrl ++ "/element/" ++ show root_id ++ "/element") payload
+  httpPost (baseUrl <> "/element/" <> root_id <> "/element") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -718,7 +717,7 @@ findElementFromElement strategy selector root = do
           SpecFormat -> lookupKeyJson _WEB_ELEMENT_ID
           ChromeFormat -> lookupKeyJson "ELEMENT"
     >>= constructFromJson
-    >>= (return . ElementRef . unpack)
+    >>= (return . ElementRef)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#find-elements-from-element>.
@@ -730,9 +729,9 @@ findElementsFromElement
   -> WebDriverTT t eff [ElementRef]
 findElementsFromElement strategy selector root = do
   (baseUrl, format) <- theRequestContext
-  let root_id = elementRefOf root
+  let root_id = theElementRef $ elementRefOf root
   let !payload = encode $ object [ "value" .= selector, "using" .= toJSON strategy ]
-  httpPost (baseUrl ++ "/element/" ++ show root_id ++ "/elements") payload
+  httpPost (baseUrl <> "/element/" <> root_id <> "/elements") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -741,7 +740,7 @@ findElementsFromElement strategy selector root = do
           SpecFormat -> mapM (lookupKeyJson _WEB_ELEMENT_ID)
           ChromeFormat -> mapM (lookupKeyJson "ELEMENT")
     >>= mapM constructFromJson
-    >>= (return . map (ElementRef . unpack))
+    >>= (return . map ElementRef)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#get-active-element>.
@@ -750,7 +749,7 @@ getActiveElement
   => WebDriverTT t eff ElementRef
 getActiveElement = do
   (baseUrl, format) <- theRequestContext
-  httpGet (baseUrl ++ "/element/active")
+  httpGet (baseUrl <> "/element/active")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -758,7 +757,7 @@ getActiveElement = do
           SpecFormat -> lookupKeyJson _WEB_ELEMENT_ID
           ChromeFormat -> lookupKeyJson "ELEMENT"
     >>= constructFromJson
-    >>= (return . ElementRef . unpack)
+    >>= (return . ElementRef)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#is-element-selected>.
@@ -767,9 +766,9 @@ isElementSelected
   => a
   -> WebDriverTT t eff Bool
 isElementSelected element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/selected")
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/selected")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -781,18 +780,18 @@ getElementAttribute
   :: (Monad eff, Monad (t eff), MonadTrans t, HasElementRef a)
   => AttributeName
   -> a
-  -> WebDriverTT t eff (Either Bool String)
+  -> WebDriverTT t eff (Either Bool Text)
 getElementAttribute name element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  x <- httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/attribute/" ++ E.encode name)
+  x <- httpGet (baseUrl <> "/element/" <> elementRef <> "/attribute/" <> E.encodeText name)
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
   case x of
     Null -> return (Left False)
     String "true" -> return (Left True)
-    String attr -> return (Right $ unpack attr)
+    String attr -> return (Right attr)
     _ -> throwJsonError $ JsonError "Invalid element attribute response"
 
 
@@ -803,9 +802,9 @@ getElementProperty
   -> a
   -> WebDriverTT t eff Value
 getElementProperty name element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/property/" ++ E.encode name)
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/property/" <> E.encodeText name)
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -816,11 +815,11 @@ getElementCssValue
   :: (Monad eff, Monad (t eff), MonadTrans t, HasElementRef a)
   => CssPropertyName
   -> a
-  -> WebDriverTT t eff String
+  -> WebDriverTT t eff Text
 getElementCssValue name element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/css/" ++ name)
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/css/" <> name)
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -831,11 +830,11 @@ getElementCssValue name element = do
 getElementText
   :: (Monad eff, Monad (t eff), MonadTrans t, HasElementRef a)
   => a
-  -> WebDriverTT t eff String
+  -> WebDriverTT t eff Text
 getElementText element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/text")
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/text")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -846,11 +845,11 @@ getElementText element = do
 getElementTagName
   :: (Monad eff, Monad (t eff), MonadTrans t, HasElementRef a)
   => a
-  -> WebDriverTT t eff String
+  -> WebDriverTT t eff Text
 getElementTagName element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/name")
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/name")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -863,9 +862,9 @@ getElementRect
   => a
   -> WebDriverTT t eff Rect
 getElementRect element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/rect")
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/rect")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -878,9 +877,9 @@ isElementEnabled
   => a
   -> WebDriverTT t eff Bool
 isElementEnabled element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/enabled")
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/enabled")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -893,9 +892,9 @@ getComputedRole
   => a
   -> WebDriverTT t eff AriaRole
 getComputedRole element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/computedrole")
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/computedrole")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -908,9 +907,9 @@ getComputedLabel
   => a
   -> WebDriverTT t eff AriaLabel
 getComputedLabel element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/computedlabel")
+  httpGet (baseUrl <> "/element/" <> elementRef <> "/computedlabel")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -924,9 +923,9 @@ elementClick
   -> WebDriverTT t eff ()
 elementClick element = do
   (baseUrl, format) <- theRequestContext
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/element/" ++ elementRef ++ "/click") payload
+  httpPost (baseUrl <> "/element/" <> elementRef <> "/click") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -941,9 +940,9 @@ elementClear
   -> WebDriverTT t eff ()
 elementClear element = do
   (baseUrl, format) <- theRequestContext
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/element/" ++ elementRef ++ "/clear") payload
+  httpPost (baseUrl <> "/element/" <> elementRef <> "/clear") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -954,14 +953,14 @@ elementClear element = do
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#element-send-keys>.
 elementSendKeys
   :: (Monad eff, Monad (t eff), MonadTrans t, HasElementRef a)
-  => String
+  => Text
   -> a
   -> WebDriverTT t eff ()
 elementSendKeys text element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object [ "text" .= text ]
-  httpPost (baseUrl ++ "/element/" ++ elementRef ++ "/value") payload
+  httpPost (baseUrl <> "/element/" <> elementRef <> "/value") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -972,29 +971,27 @@ elementSendKeys text element = do
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#get-page-source>.
 getPageSource
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => WebDriverTT t eff String
+  => WebDriverTT t eff Text
 getPageSource = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/source")
+  httpGet (baseUrl <> "/source")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
     >>= constructFromJson
-    >>= (return . unpack)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#get-page-source>. Does not dump the page source into the logs. :)
 getPageSourceStealth
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => WebDriverTT t eff String
+  => WebDriverTT t eff Text
 getPageSourceStealth = do
   baseUrl <- theRemoteUrlWithSession
-  httpSilentGet (baseUrl ++ "/source")
+  httpSilentGet (baseUrl <> "/source")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
     >>= constructFromJson
-    >>= (return . unpack)
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#execute-script>.
@@ -1006,7 +1003,7 @@ executeScript
 executeScript script args = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object [ "script" .= script, "args" .= toJSON args ]
-  httpPost (baseUrl ++ "/execute/sync") payload
+  httpPost (baseUrl <> "/execute/sync") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1021,7 +1018,7 @@ executeAsyncScript
 executeAsyncScript script args = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object [ "script" .= script, "args" .= toJSON args ]
-  httpPost (baseUrl ++ "/execute/async") payload
+  httpPost (baseUrl <> "/execute/async") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1033,7 +1030,7 @@ getAllCookies
   => WebDriverTT t eff [Cookie]
 getAllCookies = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/cookie")
+  httpGet (baseUrl <> "/cookie")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1048,7 +1045,7 @@ getNamedCookie
   -> WebDriverTT t eff Cookie
 getNamedCookie name = do
   baseUrl <- theRemoteUrlWithSession
-  httpGet (baseUrl ++ "/cookie/" ++ E.encode name)
+  httpGet (baseUrl <> "/cookie/" <> T.pack (E.encode $ unpack name))
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1060,10 +1057,10 @@ addCookie
   :: (Monad eff, Monad (t eff), MonadTrans t)
   => Cookie
   -> WebDriverTT t eff ()
-addCookie cookie = do
+addCookie c = do
   (baseUrl, format) <- theRequestContext
-  let !payload = encode $ object [ "cookie" .= cookie ]
-  httpSilentPost (baseUrl ++ "/cookie") payload
+  let !payload = encode $ object [ "cookie" .= c ]
+  httpSilentPost (baseUrl <> "/cookie") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1078,7 +1075,7 @@ deleteCookie
   -> WebDriverTT t eff ()
 deleteCookie name = do
   (baseUrl, format) <- theRequestContext
-  httpDelete (baseUrl ++ "/cookie/" ++ E.encode name)
+  httpDelete (baseUrl <> "/cookie/" <> T.pack (E.encode $ unpack name))
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1092,7 +1089,7 @@ deleteAllCookies
   => WebDriverTT t eff ()
 deleteAllCookies = do
   (baseUrl, format) <- theRequestContext
-  httpDelete (baseUrl ++ "/cookie")
+  httpDelete (baseUrl <> "/cookie")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1125,7 +1122,7 @@ _performActions stealth action = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object [ "actions" .= toJSON action ]
   let httpMethod = if stealth then httpSilentPost else httpPost
-  httpMethod (baseUrl ++ "/actions") payload
+  httpMethod (baseUrl <> "/actions") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1139,7 +1136,7 @@ releaseActions
   => WebDriverTT t eff ()
 releaseActions = do
   baseUrl <- theRemoteUrlWithSession
-  httpDelete (baseUrl ++ "/actions")
+  httpDelete (baseUrl <> "/actions")
   return ()
 
 
@@ -1150,7 +1147,7 @@ dismissAlert
 dismissAlert = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/alert/dismiss") payload
+  httpPost (baseUrl <> "/alert/dismiss") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1165,7 +1162,7 @@ acceptAlert
 acceptAlert = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object []
-  httpPost (baseUrl ++ "/alert/accept") payload
+  httpPost (baseUrl <> "/alert/accept") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1176,28 +1173,28 @@ acceptAlert = do
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#get-alert-text>.
 getAlertText
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => WebDriverTT t eff (Maybe String)
+  => WebDriverTT t eff (Maybe Text)
 getAlertText = do
   baseUrl <- theRemoteUrlWithSession
-  msg <- httpGet (baseUrl ++ "/alert/text")
+  msg <- httpGet (baseUrl <> "/alert/text")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
   case msg of
     Null -> return Nothing
-    String text -> return $ Just (unpack text)
+    String text -> return $ Just text
     _ -> throwJsonError $ JsonError "Invalid alert text response"
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#send-alert-text>.
 sendAlertText
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => String
+  => Text
   -> WebDriverTT t eff ()
 sendAlertText msg = do
   (baseUrl, format) <- theRequestContext
   let !payload = encode $ object [ "text" .= msg ]
-  httpPost (baseUrl ++ "/alert/text") payload
+  httpPost (baseUrl <> "/alert/text") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1211,7 +1208,7 @@ takeScreenshot
   => WebDriverTT t eff SB.ByteString
 takeScreenshot = do
   baseUrl <- theRemoteUrlWithSession
-  result <- httpGet (baseUrl ++ "/screenshot")
+  result <- httpGet (baseUrl <> "/screenshot")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1219,7 +1216,7 @@ takeScreenshot = do
     >>= (return . B64.decode . encodeUtf8)
   case result of
     Right img -> return img
-    Left str -> throwError $ ImageDecodeError str
+    Left str -> throwError $ ImageDecodeError $ T.pack str
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#take-element-screenshot>.
@@ -1228,9 +1225,9 @@ takeElementScreenshot
   => a
   -> WebDriverTT t eff SB.ByteString
 takeElementScreenshot element = do
-  let elementRef = show $ elementRefOf element
+  let elementRef = theElementRef $ elementRefOf element
   baseUrl <- theRemoteUrlWithSession
-  result <- httpGet (baseUrl ++ "/element/" ++ elementRef ++ "/screenshot")
+  result <- httpGet (baseUrl <> "/element/" <> elementRef <> "/screenshot")
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1238,7 +1235,7 @@ takeElementScreenshot element = do
     >>= (return . B64.decode . encodeUtf8)
   case result of
     Right img -> return img
-    Left str -> throwError $ ImageDecodeError str
+    Left str -> throwError $ ImageDecodeError $ T.pack str
 
 
 -- | See <https://w3c.github.io/webdriver/webdriver-spec.html#print-page>. You may also be interested in `decodeBase64EncodedPdf` and `writeBase64EncodedPdf`.
@@ -1248,7 +1245,7 @@ printPage
 printPage opts = do
   baseUrl <- theRemoteUrlWithSession
   let !payload = encode $ object [ "parameters" .= opts ]
-  httpPost (baseUrl ++ "/print") payload
+  httpPost (baseUrl <> "/print") payload
     >>= (return . _responseBody)
     >>= parseJson
     >>= lookupKeyJson "value"
@@ -1268,7 +1265,7 @@ expectEmptyObject format value = case format of
 
 theRequestContext
   :: (Monad eff, Monad (t eff), MonadTrans t)
-  => WebDriverTT t eff (String, ResponseFormat)
+  => WebDriverTT t eff (Url, ResponseFormat)
 theRequestContext = do
   baseUrl <- theRemoteUrlWithSession
   format <- fromEnv (_responseFormat . _env)

@@ -6,8 +6,6 @@ module Web.Api.WebDriver.Types.Test (
 import Data.Proxy
 import qualified Data.Aeson as A
   ( ToJSON(..), FromJSON, fromJSON, Result(..), object, Value(..) )
-import Test.QuickCheck
-  ( quickCheck, Arbitrary(..), label, Property )
 
 import Test.Tasty (TestTree(), testGroup)
 import Test.Tasty.QuickCheck as QC (testProperty)
@@ -160,9 +158,9 @@ prop_fromJson_parse_error
   => Proxy a -> A.Value -> IO ()
 prop_fromJson_parse_error x str =
   case A.fromJSON str of
-    A.Error !err -> return ()
+    A.Error !_ -> return ()
     A.Success !y -> do
-      let z = asProxyTypeOf y x
+      let _ = asProxyTypeOf y x
       assertFailure $ "Expected parse failure!"
 
 test_fromJson_parse_error :: TestTree
